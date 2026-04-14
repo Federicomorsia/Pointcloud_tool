@@ -1,46 +1,40 @@
-# Astro Starter Kit: Basics
+# OBJ to Pointcloud Tool
 
-```sh
-npm create astro@latest -- --template basics
-```
+Web app built with Astro + Three.js that converts local OBJ files into animated point clouds rendered with WebGL.
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+The rendering behavior is inspired by the reference article:
+https://dev.to/maniflames/pointcloud-effect-in-three-js-3eic
 
-## 🚀 Project Structure
+## Features
 
-Inside of your Astro project, you'll see the following folders and files:
+- Upload or drag-and-drop OBJ files
+- Mesh to point cloud conversion
+- Shader-based animated wave displacement (pointcloud effect)
+- Live controls for density, point size, wave speed, wave jitter, point color, and background color
+- Orbit camera controls with reset
+- Responsive UI for desktop and mobile
 
-```text
-/
-├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
-```
+## Main Structure
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+- `src/pages/index.astro`: main page entry
+- `src/components/PointcloudTool.astro`: UI + canvas layout
+- `src/scripts/pointcloud-tool.js`: Three.js scene, OBJ parsing, point cloud generation, animation
+- `src/layouts/Layout.astro`: global HTML shell and fonts
 
-## 🧞 Commands
+## Run
 
-All commands are run from the root of the project, from a terminal:
+From project root:
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+1. `npm install`
+2. `npm run dev`
+3. Open `http://localhost:4321`
 
-## 👀 Want to learn more?
+Production build:
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+- `npm run build`
+- `npm run preview`
+
+## OBJ Notes
+
+- The app expects `.obj` files containing mesh geometry.
+- If an OBJ has no valid mesh vertices, the app reports an error in the point counter.

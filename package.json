@@ -12,6 +12,8 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^6.1.6"
+    "astro": "^6.1.6",
+    "gif-encoder": "^0.7.2",
+    "three": "^0.183.2"
   }
 }
