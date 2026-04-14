@@ -184,6 +184,21 @@ if (app && app.dataset.ready !== 'true') {
 	const tempColorB = new THREE.Color();
 	const tempColorC = new THREE.Color();
 	const tempClearColor = new THREE.Color();
+	let cachedGifWriter = null;
+
+	const getGifWriter = async () => {
+		if (cachedGifWriter) {
+			return cachedGifWriter;
+		}
+
+		const module = await import('https://cdn.jsdelivr.net/npm/omggif@1.0.10/+esm');
+		if (typeof module.GifWriter !== 'function') {
+			throw new Error('GifWriter export not available');
+		}
+
+		cachedGifWriter = module.GifWriter;
+		return cachedGifWriter;
+	};
 
 	const updatePointCount = (count) => {
 		if (pointCountElement) {
@@ -753,43 +768,94 @@ if (app && app.dataset.ready !== 'true') {
 		}, 'image/png');
 	};
 
-	const exportAsGIF = () => {
+	const exportAsGIF = async () => {
 		if (!canvas || !renderer || !points) {
 			console.error('Cannot export GIF: missing canvas, renderer or points');
 			return;
 		}
 
-		if (typeof gifshot === 'undefined') {
-			alert('GIF library not loaded. Please try again.');
-			console.error('gifshot library not available');
+		let GifWriterCtor = null;
+		try {
+			GifWriterCtor = await getGifWriter();
+		} catch (error) {
+			console.error('Unable to load GIF encoder:', error);
+			alert('GIF encoder unavailable. Model rendering is still active.');
 			return;
 		}
 
-		console.log('Starting GIF export with gifshot...');
+		console.log('Starting GIF export with omggif...');
 
-		// Disabilita il bottone
+		// Disable button during export.
 		if (exportGifButton) {
 			exportGifButton.disabled = true;
 			exportGifButton.textContent = 'Exporting... 0%';
 		}
 
-		// Salva lo stato
+		// Save current rendering state.
 		const previousAutoRotate = autoRotateAroundZ;
 		const previousClearColor = new THREE.Color();
 		renderer.getClearColor(previousClearColor);
 		const previousClearAlpha = renderer.getClearAlpha();
+		const previousRotationZ = points.rotation.z;
 
-		// Setup per cattura
-		renderer.setClearColor(0x000000, 0);
-		autoRotateAroundZ = true;
+		const gifWidth = canvas.width;
+		const gifHeight = canvas.height;
+		const totalFrames = 24;
+		const frameDelayCentiseconds = 4; // ~25 FPS
+
+		const captureCanvas = document.createElement('canvas');
+		captureCanvas.width = gifWidth;
+		captureCanvas.height = gifHeight;
+		const captureContext = captureCanvas.getContext('2d', { willReadFrequently: true });
+
+		if (!captureContext) {
+			console.error('Cannot export GIF: 2D capture context unavailable');
+			restoreState();
+			return;
+		}
+
+		const makePalette332 = () => {
+			const palette = new Array(256);
+			for (let r = 0; r < 8; r++) {
+				for (let g = 0; g < 8; g++) {
+					for (let b = 0; b < 4; b++) {
+						const index = (r << 5) | (g << 2) | b;
+						const rr = Math.round((r / 7) * 255);
+						const gg = Math.round((g / 7) * 255);
+						const bb = Math.round((b / 3) * 255);
+						palette[index] = (rr << 16) | (gg << 8) | bb;
+					}
+				}
+			}
+			return palette;
+		};
+
+		const rgbaToIndexed332 = (rgba) => {
+			const pixelCount = gifWidth * gifHeight;
+			const indexed = new Uint8Array(pixelCount);
+			for (let i = 0, p = 0; p < pixelCount; i += 4, p++) {
+				const r = rgba[i] >> 5;
+				const g = rgba[i + 1] >> 5;
+				const b = rgba[i + 2] >> 6;
+				indexed[p] = (r << 5) | (g << 2) | b;
+			}
+			return indexed;
+		};
+
+		// Capture with fixed rotation steps to avoid jitter.
+		renderer.setClearColor(0x000000, 1);
+		autoRotateAroundZ = false;
+		points.rotation.z = previousRotationZ;
 		let frameCount = 0;
-		const totalFrames = 10;
-		const images = [];
+		const indexedFrames = [];
+		const stepRotation = (Math.PI * 2) / totalFrames;
 
 		const captureFrame = () => {
-			const delta = 1 / 30;
-			animateZRotation(delta);
+			if (frameCount > 0) {
+				points.rotation.z += stepRotation;
+			}
 			controls.update();
+			renderer.clear();
 
 			if (bloomEnabled) {
 				scene.traverse(darkenNonBloomed);
@@ -800,11 +866,13 @@ if (app && app.dataset.ready !== 'true') {
 				renderer.render(scene, camera);
 			}
 
-			// Cattura come dataURL
-			const dataUrl = canvas.toDataURL('image/png');
-			images.push(dataUrl);
+			captureContext.clearRect(0, 0, gifWidth, gifHeight);
+			captureContext.drawImage(canvas, 0, 0, gifWidth, gifHeight);
+			const imageData = captureContext.getImageData(0, 0, gifWidth, gifHeight);
+			indexedFrames.push(rgbaToIndexed332(imageData.data));
+
 			frameCount++;
-			
+
 			const percent = Math.round((frameCount / totalFrames) * 100);
 			if (exportGifButton) {
 				exportGifButton.textContent = `Exporting... ${percent}%`;
@@ -812,26 +880,32 @@ if (app && app.dataset.ready !== 'true') {
 			console.log(`Frame ${frameCount}/${totalFrames}`);
 
 			if (frameCount < totalFrames) {
-				setTimeout(captureFrame, 50);
+				requestAnimationFrame(captureFrame);
 			} else {
-				console.log('All frames captured, creating GIF with gifshot...');
-				
-				gifshot.createGIF({
-					images: images,
-					gifWidth: canvas.width,
-					gifHeight: canvas.height,
-					frameDuration: 5,
-					quality: 15
-				}, function(obj) {
-					if (!obj.error) {
-						console.log('GIF created successfully');
-						const blob = obj.blob;
-						downloadGIF(blob);
-					} else {
-						console.error('Error creating GIF:', obj.error);
-						restoreState();
-					}
-				});
+				encodeAndDownload(indexedFrames, makePalette332());
+			}
+		};
+
+		const encodeAndDownload = (frames, palette) => {
+			try {
+				const estimatedBytes = Math.max(1024 * 1024, gifWidth * gifHeight * frames.length * 2);
+				const output = new Uint8Array(estimatedBytes);
+				const writer = new GifWriterCtor(output, gifWidth, gifHeight, { palette, loop: 0 });
+
+				for (let i = 0; i < frames.length; i++) {
+					writer.addFrame(0, 0, gifWidth, gifHeight, frames[i], {
+						delay: frameDelayCentiseconds,
+						disposal: 1
+					});
+				}
+
+				const gifLength = writer.end();
+				const gifBytes = output.slice(0, gifLength);
+				const blob = new Blob([gifBytes], { type: 'image/gif' });
+				downloadGIF(blob);
+			} catch (error) {
+				console.error('GIF encoding failed:', error);
+				restoreState();
 			}
 		};
 
@@ -849,7 +923,9 @@ if (app && app.dataset.ready !== 'true') {
 
 		const restoreState = () => {
 			autoRotateAroundZ = previousAutoRotate;
+			points.rotation.z = previousRotationZ;
 			renderer.setClearColor(previousClearColor, previousClearAlpha);
+			renderer.clear();
 
 			if (exportGifButton) {
 				exportGifButton.disabled = false;
@@ -867,7 +943,7 @@ if (app && app.dataset.ready !== 'true') {
 			}
 		};
 
-		setTimeout(captureFrame, 0);
+		requestAnimationFrame(captureFrame);
 	};
 
 	uploadButton?.addEventListener('click', () => fileInput?.click());
@@ -1044,13 +1120,36 @@ if (app && app.dataset.ready !== 'true') {
 	syncControlValues();
 	render();
 
+	const withTimeout = (promise, timeoutMs) =>
+		Promise.race([
+			promise,
+			new Promise((resolve) => {
+				window.setTimeout(() => resolve(false), timeoutMs);
+			})
+		]);
+
 	const initializeModel = async () => {
 		console.log('Initializing model...');
-		const loadedDefault = await loadDefaultAssetModel();
+		let loadedDefault = false;
+
+		try {
+			loadedDefault = await withTimeout(loadDefaultAssetModel(), 10000);
+		} catch (error) {
+			console.warn('Default asset load failed unexpectedly:', error);
+		}
+
 		console.log('loadedDefault:', loadedDefault);
 		if (!loadedDefault) {
 			console.log('Loading fallback default model');
-			setDefaultModel();
+			try {
+				setDefaultModel();
+			} catch (error) {
+				console.error('Fallback model creation failed:', error);
+				updatePointCount(0);
+				if (pointCountElement) {
+					pointCountElement.textContent = 'Points: unable to initialize model';
+				}
+			}
 		}
 	};
 
