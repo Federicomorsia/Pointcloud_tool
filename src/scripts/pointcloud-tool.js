@@ -56,7 +56,7 @@ if (app && app.dataset.ready !== 'true') {
 	const isNarrowScreen = window.matchMedia('(max-width: 900px)').matches;
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio, isNarrowScreen ? 1.5 : 2));
 	renderer.setSize(stage.clientWidth, stage.clientHeight, false);
-	renderer.setClearColor('#060912', 1);
+	renderer.setClearColor('#000000', 1);
 	renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 	const gl = renderer.getContext();
@@ -69,7 +69,7 @@ if (app && app.dataset.ready !== 'true') {
 	controls.minDistance = 0.2;
 	controls.maxDistance = 40;
 
-	scene.add(new THREE.HemisphereLight(0x8ec8ff, 0x0e0f14, 0.35));
+	scene.add(new THREE.HemisphereLight(0x666666, 0x333333, 0.4));
 
 	const bloomComposer = new EffectComposer(renderer);
 	bloomComposer.renderToScreen = false;
@@ -871,6 +871,7 @@ if (app && app.dataset.ready !== 'true') {
 	};
 
 	uploadButton?.addEventListener('click', () => fileInput?.click());
+	dropzone?.addEventListener('click', () => fileInput?.click());
 
 	fileInput?.addEventListener('change', async (event) => {
 		const target = event.target;

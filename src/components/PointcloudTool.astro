@@ -1,5 +1,6 @@
 ---
 import pointcloudScriptUrl from "../scripts/pointcloud-tool.js?url";
+import "../styles/pointcloud-tool.css";
 
 const bundledGlbAssets = Object.values(
 	import.meta.glob("../assets/*.glb", {
@@ -16,27 +17,15 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 	data-pointcloud-app
 	data-default-model={defaultModelUrl}
 >
-	<header class="hero">
-		<p class="eyebrow">Astro + Three.js + WebGL</p>
-		<h1>OBJ to Pointcloud Studio</h1>
-		<p class="intro">
-			Carica un file OBJ o GLB locale e trasformalo in una nuvola di punti densa
-			e pulita, con colori derivati dalla mesh.
-		</p>
-	</header>
-
 	<div class="workspace">
 		<aside class="panel">
-			<div class="upload-row">
-				<button type="button" class="upload-btn" data-action-upload
-					>Upload OBJ / GLB</button
-				>
-				<input type="file" accept=".obj,.glb" data-file-input hidden />
-			</div>
+			<h1 class="panel-title">Pointcloud Tool</h1>
+
+			<input type="file" accept=".obj,.glb" data-file-input hidden />
 
 			<div class="dropzone" data-dropzone>
 				<p>Drop .obj or .glb here</p>
-				<span>or use the upload button</span>
+				<span>or click to open file</span>
 			</div>
 
 			<label>
@@ -136,11 +125,6 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 				/>
 			</label>
 
-			<label class="picker">
-				<span>Background</span>
-				<input type="color" value="#060912" data-background />
-			</label>
-
 			<button type="button" class="ghost" data-reset-camera>Reset Camera</button
 			>
 			<button type="button" class="ghost" data-export-png>Export PNG</button>
@@ -149,8 +133,8 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 		</aside>
 
 		<div class="stage" data-stage>
-			<div class="stage-glow"></div>
 			<canvas data-pointcloud-canvas></canvas>
+			<div class="grid-overlay"></div>
 		</div>
 	</div>
 </section>
@@ -175,238 +159,3 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/dist/gifshot.min.js"
 ></script>
 <script type="module" src={pointcloudScriptUrl}></script>
-
-<style>
-	:root {
-		--bg-0: #020308;
-		--bg-1: #070b18;
-		--bg-2: #111c30;
-		--text: #ebf6ff;
-		--muted: #9ab0c7;
-		--accent: #91ffd7;
-		--border: rgba(145, 255, 215, 0.2);
-	}
-
-	.pointcloud-app {
-		font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
-		min-height: 100svh;
-		padding: 2rem clamp(1rem, 4vw, 2.5rem);
-		color: var(--text);
-		background:
-			radial-gradient(
-				1200px 600px at 90% -20%,
-				rgba(145, 255, 215, 0.18),
-				transparent 55%
-			),
-			radial-gradient(
-				900px 500px at -10% 100%,
-				rgba(69, 149, 255, 0.25),
-				transparent 60%
-			),
-			linear-gradient(155deg, var(--bg-0), var(--bg-1) 40%, var(--bg-2));
-	}
-
-	.hero h1 {
-		margin: 0.1rem 0 0.5rem;
-		font-family: "Syne", "Space Grotesk", sans-serif;
-		font-size: clamp(2rem, 5vw, 3.4rem);
-		line-height: 1.02;
-	}
-
-	.eyebrow {
-		margin: 0;
-		letter-spacing: 0.15em;
-		text-transform: uppercase;
-		font-size: 0.78rem;
-		color: var(--muted);
-	}
-
-	.intro {
-		max-width: 62ch;
-		margin: 0;
-		color: var(--muted);
-	}
-
-	.workspace {
-		margin-top: 1.4rem;
-		display: grid;
-		gap: 1rem;
-		grid-template-columns: minmax(250px, 310px) 1fr;
-	}
-
-	.panel,
-	.stage {
-		backdrop-filter: blur(7px);
-		border: 1px solid var(--border);
-		border-radius: 18px;
-		background: rgba(10, 14, 26, 0.72);
-	}
-
-	.panel {
-		padding: 1rem;
-		display: grid;
-		gap: 0.75rem;
-		align-content: start;
-	}
-
-	.upload-btn,
-	.ghost {
-		font: inherit;
-		border: 0;
-		border-radius: 12px;
-		padding: 0.68rem 0.9rem;
-		cursor: pointer;
-		transition:
-			transform 180ms ease,
-			box-shadow 180ms ease;
-	}
-
-	.upload-btn {
-		background: linear-gradient(120deg, #97ffe1, #70f1ff);
-		color: #02131a;
-		font-weight: 700;
-		box-shadow: 0 14px 30px rgba(130, 255, 218, 0.25);
-	}
-
-	.ghost {
-		background: rgba(255, 255, 255, 0.06);
-		color: var(--text);
-		border: 1px solid rgba(255, 255, 255, 0.16);
-	}
-
-	.upload-btn:hover,
-	.ghost:hover {
-		transform: translateY(-1px);
-	}
-
-	.dropzone {
-		border: 1px dashed rgba(255, 255, 255, 0.25);
-		border-radius: 12px;
-		padding: 0.9rem;
-		text-align: center;
-		color: var(--muted);
-	}
-
-	.dropzone p {
-		margin: 0;
-		font-weight: 700;
-		color: var(--text);
-	}
-
-	.dropzone span {
-		font-size: 0.82rem;
-	}
-
-	.dropzone.drag-over {
-		border-color: var(--accent);
-		background: rgba(145, 255, 215, 0.11);
-	}
-
-	label {
-		display: grid;
-		gap: 0.35rem;
-		font-size: 0.88rem;
-	}
-
-	label span {
-		color: var(--muted);
-	}
-
-	.control-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-	}
-
-	output {
-		font-family:
-			"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 0.78rem;
-		color: var(--text);
-	}
-
-	.toggle-row {
-		grid-template-columns: 1fr auto;
-		align-items: center;
-	}
-
-	input[type="range"] {
-		width: 100%;
-	}
-
-	input[type="checkbox"] {
-		width: 1rem;
-		height: 1rem;
-		accent-color: #70f1ff;
-	}
-
-	.picker {
-		grid-template-columns: 1fr auto;
-		align-items: center;
-	}
-
-	input[type="color"] {
-		width: 45px;
-		height: 34px;
-		border-radius: 8px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		background: transparent;
-	}
-
-	.stats {
-		margin: 0.1rem 0 0;
-		font-family:
-			"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: 0.85rem;
-		color: var(--muted);
-	}
-
-	.stage {
-		position: relative;
-		overflow: hidden;
-		min-height: clamp(420px, 70vh, 780px);
-	}
-
-	.stage-glow {
-		position: absolute;
-		inset: -30% 30% auto -20%;
-		height: 65%;
-		background: radial-gradient(
-			circle,
-			rgba(112, 241, 255, 0.36),
-			transparent 62%
-		);
-		pointer-events: none;
-		filter: blur(10px);
-	}
-
-	canvas {
-		display: block;
-		width: 100%;
-		height: 100%;
-	}
-
-	@media (max-width: 960px) {
-		.workspace {
-			grid-template-columns: 1fr;
-		}
-
-		.panel {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-
-		.upload-row,
-		.dropzone,
-		.stats,
-		.ghost {
-			grid-column: 1 / -1;
-		}
-	}
-
-	@media (max-width: 700px) {
-		.panel {
-			grid-template-columns: 1fr;
-		}
-	}
-</style>
