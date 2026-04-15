@@ -2,6 +2,10 @@
   "name": "pointcloud-tool",
   "type": "module",
   "version": "0.0.1",
+  "exports": {
+    ".": "./src/scripts/index.js",
+    "./engine": "./src/scripts/pointcloud-engine.js"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
