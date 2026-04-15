@@ -21,6 +21,9 @@ if (app && app.dataset.ready !== 'true') {
 	const dropzone = app.querySelector('[data-dropzone]');
 	const densityInput = app.querySelector('[data-density]');
 	const sizeInput = app.querySelector('[data-size]');
+	const brightnessInput = app.querySelector('[data-brightness]');
+	const saturationInput = app.querySelector('[data-saturation]');
+	const tintInput = app.querySelector('[data-tint]');
 	const animationToggle = app.querySelector('[data-animate-toggle]');
 	const rotationSpeedInput = app.querySelector('[data-rotation-speed]');
 	const bloomToggle = app.querySelector('[data-bloom-toggle]');
@@ -29,6 +32,8 @@ if (app && app.dataset.ready !== 'true') {
 	const bloomThresholdInput = app.querySelector('[data-bloom-threshold]');
 	const densityValueElement = app.querySelector('[data-density-value]');
 	const sizeValueElement = app.querySelector('[data-size-value]');
+	const brightnessValueElement = app.querySelector('[data-brightness-value]');
+	const saturationValueElement = app.querySelector('[data-saturation-value]');
 	const rotationSpeedValueElement = app.querySelector('[data-rotation-speed-value]');
 	const bloomStrengthValueElement = app.querySelector('[data-bloom-strength-value]');
 	const bloomRadiusValueElement = app.querySelector('[data-bloom-radius-value]');
@@ -134,7 +139,10 @@ if (app && app.dataset.ready !== 'true') {
 	const uniforms = {
 		uSize: { value: Number(sizeInput?.value ?? 0.03) },
 		uProjectionScale: { value: 1 },
-		uPointSizeCap: { value: Math.max(1, Math.min(6, maxPointSize)) }
+		uPointSizeCap: { value: Math.max(1, Math.min(6, maxPointSize)) },
+		uExposure: { value: Number(brightnessInput?.value ?? 1) },
+		uSaturation: { value: Number(saturationInput?.value ?? 1) },
+		uTint: { value: new THREE.Color(tintInput?.value ?? '#ffffff') }
 	};
 
 	const pointMaterial = new THREE.ShaderMaterial({
@@ -158,11 +166,17 @@ if (app && app.dataset.ready !== 'true') {
 			}
 		`,
 		fragmentShader: `
+			uniform float uExposure;
+			uniform float uSaturation;
+			uniform vec3 uTint;
 			varying vec3 vColor;
 
 			void main() {
 				vec3 safeColor = max(vColor, vec3(0.0));
-				vec3 displayColor = pow(safeColor, vec3(1.0 / 2.2));
+				vec3 tintedColor = safeColor * uTint;
+				float luma = dot(tintedColor, vec3(0.2126, 0.7152, 0.0722));
+				vec3 saturatedColor = mix(vec3(luma), tintedColor, uSaturation);
+				vec3 displayColor = pow(max(saturatedColor * uExposure, vec3(0.0)), vec3(1.0 / 2.2));
 				gl_FragColor = vec4(displayColor, 1.0);
 			}
 		`
@@ -218,6 +232,14 @@ if (app && app.dataset.ready !== 'true') {
 
 		if (sizeInput && sizeValueElement) {
 			sizeValueElement.textContent = Number(sizeInput.value).toFixed(3);
+		}
+
+		if (brightnessInput && brightnessValueElement) {
+			brightnessValueElement.textContent = Number(brightnessInput.value).toFixed(2);
+		}
+
+		if (saturationInput && saturationValueElement) {
+			saturationValueElement.textContent = Number(saturationInput.value).toFixed(2);
 		}
 
 		if (rotationSpeedInput && rotationSpeedValueElement) {
@@ -1032,6 +1054,21 @@ if (app && app.dataset.ready !== 'true') {
 
 	backgroundInput?.addEventListener('input', () => {
 		renderer.setClearColor(backgroundInput.value, 1);
+		stage.style.backgroundColor = backgroundInput.value;
+	});
+
+	brightnessInput?.addEventListener('input', () => {
+		uniforms.uExposure.value = Number(brightnessInput.value);
+		syncControlValues();
+	});
+
+	saturationInput?.addEventListener('input', () => {
+		uniforms.uSaturation.value = Number(saturationInput.value);
+		syncControlValues();
+	});
+
+	tintInput?.addEventListener('input', () => {
+		uniforms.uTint.value.set(tintInput.value);
 	});
 
 	resetButton?.addEventListener('click', () => {

@@ -23,113 +23,192 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 
 			<input type="file" accept=".obj,.glb" data-file-input hidden />
 
-			<div class="dropzone" data-dropzone>
-				<p>Drop .obj or .glb here</p>
-				<span>or click to open file</span>
-			</div>
+			<details class="panel-group" open>
+				<summary>Import</summary>
+				<div class="panel-group-body">
+					<div class="dropzone" data-dropzone>
+						<p>Drop .obj or .glb here</p>
+						<span>or click to open file</span>
+					</div>
 
-			<label>
-				<div class="control-head">
-					<span>Density</span>
-					<output data-density-value>18</output>
+					<label>
+						<div class="control-head">
+							<span>Density</span>
+							<output data-density-value>18</output>
+						</div>
+						<input
+							type="range"
+							min="1"
+							max="20"
+							step="1"
+							value="18"
+							data-density
+						/>
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Point Size</span>
+							<output data-size-value>0.030</output>
+						</div>
+						<input
+							type="range"
+							min="0.005"
+							max="0.05"
+							step="0.001"
+							value="0.03"
+							data-size
+						/>
+					</label>
 				</div>
-				<input type="range" min="1" max="20" step="1" value="18" data-density />
-			</label>
+			</details>
 
-			<label>
-				<div class="control-head">
-					<span>Point Size</span>
-					<output data-size-value>0.030</output>
+			<details class="panel-group">
+				<summary>Appearance</summary>
+				<div class="panel-group-body">
+					<label>
+						<div class="control-head">
+							<span>Brightness</span>
+							<output data-brightness-value>1.00</output>
+						</div>
+						<input
+							type="range"
+							min="0.2"
+							max="2.5"
+							step="0.01"
+							value="1"
+							data-brightness
+						/>
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Saturation</span>
+							<output data-saturation-value>1.00</output>
+						</div>
+						<input
+							type="range"
+							min="0"
+							max="2.5"
+							step="0.01"
+							value="1"
+							data-saturation
+						/>
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Tint Color</span>
+						</div>
+						<input type="color" value="#ffffff" data-tint />
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Background</span>
+						</div>
+						<input type="color" value="#000000" data-background />
+					</label>
 				</div>
-				<input
-					type="range"
-					min="0.005"
-					max="0.05"
-					step="0.001"
-					value="0.03"
-					data-size
-				/>
-			</label>
+			</details>
 
-			<label class="toggle-row">
-				<div class="control-head">
-					<span>Animate Z Rotation</span>
+			<details class="panel-group">
+				<summary>Motion</summary>
+				<div class="panel-group-body">
+					<label class="toggle-row">
+						<div class="control-head">
+							<span>Animate Z Rotation</span>
+						</div>
+						<input type="checkbox" data-animate-toggle checked />
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Rotation Speed</span>
+							<output data-rotation-speed-value>0.60</output>
+						</div>
+						<input
+							type="range"
+							min="0"
+							max="20"
+							step="0.05"
+							value="0.6"
+							data-rotation-speed
+						/>
+					</label>
 				</div>
-				<input type="checkbox" data-animate-toggle checked />
-			</label>
+			</details>
 
-			<label>
-				<div class="control-head">
-					<span>Rotation Speed</span>
-					<output data-rotation-speed-value>0.60</output>
+			<details class="panel-group">
+				<summary>Bloom</summary>
+				<div class="panel-group-body">
+					<label class="toggle-row">
+						<div class="control-head">
+							<span>Bloom</span>
+						</div>
+						<input type="checkbox" data-bloom-toggle />
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Bloom Strength</span>
+							<output data-bloom-strength-value>1.00</output>
+						</div>
+						<input
+							type="range"
+							min="0"
+							max="3"
+							step="0.05"
+							value="1"
+							data-bloom-strength
+						/>
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Bloom Radius</span>
+							<output data-bloom-radius-value>0.30</output>
+						</div>
+						<input
+							type="range"
+							min="0"
+							max="1"
+							step="0.01"
+							value="0.3"
+							data-bloom-radius
+						/>
+					</label>
+
+					<label>
+						<div class="control-head">
+							<span>Bloom Threshold</span>
+							<output data-bloom-threshold-value>0.15</output>
+						</div>
+						<input
+							type="range"
+							min="0"
+							max="1"
+							step="0.01"
+							value="0.15"
+							data-bloom-threshold
+						/>
+					</label>
 				</div>
-				<input
-					type="range"
-					min="0"
-					max="20"
-					step="0.05"
-					value="0.6"
-					data-rotation-speed
-				/>
-			</label>
+			</details>
 
-			<label class="toggle-row">
-				<div class="control-head">
-					<span>Bloom</span>
+			<details class="panel-group" open>
+				<summary>Actions</summary>
+				<div class="panel-group-body">
+					<button type="button" class="ghost" data-reset-camera
+						>Reset Camera</button
+					>
+					<button type="button" class="ghost" data-export-png>Export PNG</button
+					>
+					<button type="button" class="ghost" data-export-gif>Export GIF</button
+					>
+					<p class="stats" data-point-count>Points: -</p>
 				</div>
-				<input type="checkbox" data-bloom-toggle />
-			</label>
-
-			<label>
-				<div class="control-head">
-					<span>Bloom Strength</span>
-					<output data-bloom-strength-value>1.00</output>
-				</div>
-				<input
-					type="range"
-					min="0"
-					max="3"
-					step="0.05"
-					value="1"
-					data-bloom-strength
-				/>
-			</label>
-
-			<label>
-				<div class="control-head">
-					<span>Bloom Radius</span>
-					<output data-bloom-radius-value>0.30</output>
-				</div>
-				<input
-					type="range"
-					min="0"
-					max="1"
-					step="0.01"
-					value="0.3"
-					data-bloom-radius
-				/>
-			</label>
-
-			<label>
-				<div class="control-head">
-					<span>Bloom Threshold</span>
-					<output data-bloom-threshold-value>0.15</output>
-				</div>
-				<input
-					type="range"
-					min="0"
-					max="1"
-					step="0.01"
-					value="0.15"
-					data-bloom-threshold
-				/>
-			</label>
-
-			<button type="button" class="ghost" data-reset-camera>Reset Camera</button
-			>
-			<button type="button" class="ghost" data-export-png>Export PNG</button>
-			<button type="button" class="ghost" data-export-gif>Export GIF</button>
-			<p class="stats" data-point-count>Points: -</p>
+			</details>
 		</aside>
 
 		<div class="stage" data-stage>
