@@ -139,7 +139,7 @@ if (app && app.dataset.ready !== 'true') {
 	const uniforms = {
 		uSize: { value: Number(sizeInput?.value ?? 0.03) },
 		uProjectionScale: { value: 1 },
-		uPointSizeCap: { value: Math.max(1, Math.min(6, maxPointSize)) },
+		uPointSizeCap: { value: Math.max(1, Math.min(10, maxPointSize)) },
 		uExposure: { value: Number(brightnessInput?.value ?? 1) },
 		uSaturation: { value: Number(saturationInput?.value ?? 1) },
 		uTint: { value: new THREE.Color(tintInput?.value ?? '#ffffff') }
