@@ -684,9 +684,13 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		const randomRange = engineConfig.randomPlacementRange * 0.4;
 		for (let i = 0; i < pointCount; i++) {
 			const idx = i * 3;
-			startPositions[idx] = (Math.random() * 2 - 1) * randomRange;
-			startPositions[idx + 1] = (Math.random() * 2 - 1) * randomRange;
-			startPositions[idx + 2] = (Math.random() * 2 - 1) * randomRange * 0.6;
+			// Distribuzione sferica uniforme anziché rettangolare
+			const radius = Math.random() * randomRange;
+			const theta = Math.random() * Math.PI * 2;
+			const phi = Math.acos(2 * Math.random() - 1);
+			startPositions[idx] = radius * Math.sin(phi) * Math.cos(theta);
+			startPositions[idx + 1] = radius * Math.sin(phi) * Math.sin(theta);
+			startPositions[idx + 2] = radius * Math.cos(phi);
 		}
 
 		// Copia le posizioni casuali al geometry per il frame iniziale
