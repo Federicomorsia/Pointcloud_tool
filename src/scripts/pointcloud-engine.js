@@ -244,6 +244,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 	let cachedGifWriter = null;
 	let isRunning = false;
 	let modelCounter = 0;
+	const activeAnimations = [];
 
 	const engineConfig = {
 		pointDensity: Math.round(asNumber(options.pointDensity, DEFAULT_OPTIONS.pointDensity)),
@@ -668,6 +669,74 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		modelRecord.points.updateMatrixWorld(true);
 	};
 
+	const animateLoadingImplosion = (modelRecord, durationMs = 1000) => {
+		const geometry = modelRecord.points.geometry;
+		const positionAttr = geometry.attributes.position;
+		const positionArray = positionAttr.array;
+		const pointCount = positionAttr.count;
+
+		// Clone delle posizioni finali
+		const finalPositions = new Float32Array(positionArray.length);
+		finalPositions.set(positionArray);
+
+		// Generare posizioni casuali iniziali
+		const startPositions = new Float32Array(positionArray.length);
+		const randomRange = engineConfig.randomPlacementRange * 0.4;
+		for (let i = 0; i < pointCount; i++) {
+			const idx = i * 3;
+			startPositions[idx] = (Math.random() * 2 - 1) * randomRange;
+			startPositions[idx + 1] = (Math.random() * 2 - 1) * randomRange;
+			startPositions[idx + 2] = (Math.random() * 2 - 1) * randomRange * 0.6;
+		}
+
+		// Copia le posizioni casuali al geometry per il frame iniziale
+		positionArray.set(startPositions);
+		positionAttr.needsUpdate = true;
+
+		// Crea oggetto animazione
+		const animation = {
+			modelRecord,
+			positionAttr,
+			positionArray,
+			finalPositions,
+			startPositions,
+			pointCount,
+			duration: durationMs,
+			startTime: performance.now()
+		};
+
+		activeAnimations.push(animation);
+	};
+
+	const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+	const updateAnimations = () => {
+		const now = performance.now();
+		
+		for (let i = activeAnimations.length - 1; i >= 0; i--) {
+			const anim = activeAnimations[i];
+			const elapsed = now - anim.startTime;
+			let progress = Math.min(1, elapsed / anim.duration);
+			progress = easeOutCubic(progress);
+
+			if (progress < 1) {
+				// Interpola tra posizioni iniziali e finali
+				for (let j = 0; j < anim.pointCount; j++) {
+					const idx = j * 3;
+					anim.positionArray[idx] = anim.startPositions[idx] + (anim.finalPositions[idx] - anim.startPositions[idx]) * progress;
+					anim.positionArray[idx + 1] = anim.startPositions[idx + 1] + (anim.finalPositions[idx + 1] - anim.startPositions[idx + 1]) * progress;
+					anim.positionArray[idx + 2] = anim.startPositions[idx + 2] + (anim.finalPositions[idx + 2] - anim.startPositions[idx + 2]) * progress;
+				}
+				anim.positionAttr.needsUpdate = true;
+			} else {
+				// Animazione completata - ripristina le posizioni finali
+				anim.positionArray.set(anim.finalPositions);
+				anim.positionAttr.needsUpdate = true;
+				activeAnimations.splice(i, 1);
+			}
+		}
+	};
+
 	const ensureUniqueModelId = (preferredId) => {
 		if (preferredId && !modelRecords.has(preferredId)) {
 			return preferredId;
@@ -725,6 +794,12 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 		if (addOptions.frame ?? modelRecords.size === 1) {
 			frameAllModels();
+		}
+
+		// Avvia l'animazione di caricamento (implosion)
+		const animationDuration = addOptions.loadingAnimationDuration ?? 1000; // 1 secondo di default
+		if (animationDuration > 0) {
+			animateLoadingImplosion(modelRecord, animationDuration);
 		}
 
 		invokeStatsChange();
@@ -901,6 +976,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			pointContainer.rotation.z += delta * engineConfig.rotationSpeed;
 		}
 		controls.update();
+		updateAnimations();
 		renderScene();
 		animationFrameId = requestAnimationFrame(renderLoop);
 	};

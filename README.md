@@ -35,6 +35,10 @@ Build produzione:
 
 ## Riutilizzo in altri progetti
 
+Se devi passare documentazione a un altro progetto che non puo' vedere questo repository, usa il documento dedicato:
+
+- `README.external-integration.md`
+
 L'engine e' esportato da:
 
 - package root (`pointcloud-tool`)
