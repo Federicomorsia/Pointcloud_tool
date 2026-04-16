@@ -1,5 +1,4 @@
 ---
-import pointcloudScriptUrl from "../scripts/pointcloud-tool.js?url";
 import "../styles/pointcloud-tool.css";
 
 const bundledGlbAssets = Object.values(
@@ -234,4 +233,6 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 	}
 </script>
 
-<script type="module" src={pointcloudScriptUrl}></script>
+<script>
+	import "../scripts/pointcloud-tool.js";
+</script>
