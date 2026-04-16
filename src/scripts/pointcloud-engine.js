@@ -1087,50 +1087,85 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		}, 'image/png');
 	};
 
-	const exportAsGIF = async ({ filename = 'pointcloud.gif', totalFrames = 24, fps = 25 } = {}) => {
+	const exportAsGIF = async ({ filename = 'pointcloud.gif', totalFrames = 600, fps = 20, maxDimension = 0 } = {}) => {
 		if (modelRecords.size === 0) {
 			throw new Error('Cannot export GIF: no models loaded.');
 		}
 
 		const GifWriterCtor = await getGifWriter();
-		const gifWidth = canvas.width;
-		const gifHeight = canvas.height;
+		const sourceWidth = canvas.width;
+		const sourceHeight = canvas.height;
+		const requestedMaxDimension = asNumber(maxDimension, 0);
+		const hasDimensionLimit = requestedMaxDimension > 0;
+		const exportScale = hasDimensionLimit
+			? Math.min(1, requestedMaxDimension / Math.max(sourceWidth, sourceHeight))
+			: 1;
 		const frameDelayCentiseconds = Math.max(1, Math.round(100 / Math.max(1, fps)));
+		const maxBufferBytes = 512 * 1024 * 1024;
+		const minBufferBytes = 1024 * 1024;
 
-		const captureCanvas = document.createElement('canvas');
-		captureCanvas.width = gifWidth;
-		captureCanvas.height = gifHeight;
-		const captureContext = captureCanvas.getContext('2d', { willReadFrequently: true });
-		if (!captureContext) {
-			throw new Error('2D capture context unavailable.');
-		}
-
-		const makePalette332 = () => {
+		const makePalette216WithGrays = () => {
 			const palette = new Array(256);
-			for (let r = 0; r < 8; r++) {
-				for (let g = 0; g < 8; g++) {
-					for (let b = 0; b < 4; b++) {
-						const index = (r << 5) | (g << 2) | b;
-						const rr = Math.round((r / 7) * 255);
-						const gg = Math.round((g / 7) * 255);
-						const bb = Math.round((b / 3) * 255);
-						palette[index] = (rr << 16) | (gg << 8) | bb;
+			let paletteIndex = 0;
+			for (let r = 0; r < 6; r++) {
+				for (let g = 0; g < 6; g++) {
+					for (let b = 0; b < 6; b++) {
+						const rr = Math.round((r / 5) * 255);
+						const gg = Math.round((g / 5) * 255);
+						const bb = Math.round((b / 5) * 255);
+						palette[paletteIndex] = (rr << 16) | (gg << 8) | bb;
+						paletteIndex += 1;
 					}
 				}
+			}
+
+			for (let grayStep = 0; grayStep < 40; grayStep++) {
+				const gray = Math.round((grayStep / 39) * 255);
+				palette[216 + grayStep] = (gray << 16) | (gray << 8) | gray;
 			}
 			return palette;
 		};
 
-		const rgbaToIndexed332 = (rgba) => {
-			const pixelCount = gifWidth * gifHeight;
-			const indexed = new Uint8Array(pixelCount);
-			for (let i = 0, p = 0; p < pixelCount; i += 4, p++) {
-				const r = rgba[i] >> 5;
-				const g = rgba[i + 1] >> 5;
-				const b = rgba[i + 2] >> 6;
-				indexed[p] = (r << 5) | (g << 2) | b;
+		const clampByte = (value) => Math.min(255, Math.max(0, Math.round(value)));
+		const bayer4x4 = [
+			[0, 8, 2, 10],
+			[12, 4, 14, 6],
+			[3, 11, 1, 9],
+			[15, 7, 13, 5]
+		];
+
+		const rgbaToIndexed216WithGrays = (rgba, target, width) => {
+			for (let i = 0, p = 0; p < target.length; i += 4, p++) {
+				const x = p % width;
+				const y = Math.floor(p / width);
+				const ditherBias = (bayer4x4[y & 3][x & 3] - 7.5) * 1.5;
+				const rRaw = clampByte(rgba[i] + ditherBias);
+				const gRaw = clampByte(rgba[i + 1] + ditherBias);
+				const bRaw = clampByte(rgba[i + 2] + ditherBias);
+
+				const cubeR = Math.min(5, Math.max(0, Math.round((rRaw / 255) * 5)));
+				const cubeG = Math.min(5, Math.max(0, Math.round((gRaw / 255) * 5)));
+				const cubeB = Math.min(5, Math.max(0, Math.round((bRaw / 255) * 5)));
+				const cubeIndex = cubeR * 36 + cubeG * 6 + cubeB;
+				const cubeColorR = Math.round((cubeR / 5) * 255);
+				const cubeColorG = Math.round((cubeG / 5) * 255);
+				const cubeColorB = Math.round((cubeB / 5) * 255);
+
+				const luma = Math.round(0.299 * rRaw + 0.587 * gRaw + 0.114 * bRaw);
+				const grayLevel = Math.min(39, Math.max(0, Math.round((luma / 255) * 39)));
+				const grayValue = Math.round((grayLevel / 39) * 255);
+
+				const cubeDistance =
+					(rRaw - cubeColorR) * (rRaw - cubeColorR) +
+					(gRaw - cubeColorG) * (gRaw - cubeColorG) +
+					(bRaw - cubeColorB) * (bRaw - cubeColorB);
+				const grayDistance =
+					(rRaw - grayValue) * (rRaw - grayValue) +
+					(gRaw - grayValue) * (gRaw - grayValue) +
+					(bRaw - grayValue) * (bRaw - grayValue);
+
+				target[p] = grayDistance < cubeDistance ? 216 + grayLevel : cubeIndex;
 			}
-			return indexed;
 		};
 
 		const previousAutoRotate = engineConfig.autoRotate;
@@ -1141,46 +1176,88 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 		engineConfig.autoRotate = false;
 		pointContainer.rotation.z = previousContainerRotation;
-		renderer.setClearColor(0x000000, 1);
+		renderer.setClearColor(engineConfig.background, 1);
+
+		const stepRotation = (Math.PI * 2) / Math.max(1, totalFrames);
+		const scaleCandidates = [
+			exportScale,
+			exportScale * 0.9,
+			exportScale * 0.8,
+			exportScale * 0.72,
+			exportScale * 0.64,
+			exportScale * 0.56,
+			exportScale * 0.5,
+			exportScale * 0.44,
+			exportScale * 0.38
+		]
+			.map((scale) => Math.min(1, Math.max(0.2, scale)))
+			.filter((scale, index, values) => values.indexOf(scale) === index);
+
+		let lastExportError = null;
 
 		try {
-			const indexedFrames = [];
-			const stepRotation = (Math.PI * 2) / Math.max(1, totalFrames);
+			for (const scale of scaleCandidates) {
+				const gifWidth = Math.max(1, Math.round(sourceWidth * scale));
+				const gifHeight = Math.max(1, Math.round(sourceHeight * scale));
+				const estimatedBytes = Math.max(
+					minBufferBytes,
+					Math.ceil(gifWidth * gifHeight * Math.max(1, totalFrames) * 0.75)
+				);
+				const bufferBytes = Math.max(minBufferBytes, Math.min(maxBufferBytes, estimatedBytes));
 
-			for (let frame = 0; frame < totalFrames; frame += 1) {
-				if (frame > 0) {
-					pointContainer.rotation.z += stepRotation;
+				try {
+					const captureCanvas = document.createElement('canvas');
+					captureCanvas.width = gifWidth;
+					captureCanvas.height = gifHeight;
+					const captureContext = captureCanvas.getContext('2d', { willReadFrequently: true });
+					if (!captureContext) {
+						throw new Error('2D capture context unavailable.');
+					}
+					captureContext.imageSmoothingEnabled = true;
+					captureContext.imageSmoothingQuality = 'high';
+
+					const output = new Uint8Array(bufferBytes);
+					const writer = new GifWriterCtor(output, gifWidth, gifHeight, {
+						palette: makePalette216WithGrays(),
+						loop: 0
+					});
+					const indexedFrameBuffer = new Uint8Array(gifWidth * gifHeight);
+					pointContainer.rotation.z = previousContainerRotation;
+
+					for (let frame = 0; frame < totalFrames; frame += 1) {
+						if (frame > 0) {
+							pointContainer.rotation.z += stepRotation;
+						}
+						controls.update();
+						renderScene();
+						captureContext.clearRect(0, 0, gifWidth, gifHeight);
+						captureContext.drawImage(canvas, 0, 0, gifWidth, gifHeight);
+						const imageData = captureContext.getImageData(0, 0, gifWidth, gifHeight);
+						rgbaToIndexed216WithGrays(imageData.data, indexedFrameBuffer, gifWidth);
+						writer.addFrame(0, 0, gifWidth, gifHeight, indexedFrameBuffer, {
+							delay: frameDelayCentiseconds,
+							disposal: 1
+						});
+					}
+
+					const gifLength = writer.end();
+					const gifBytes = output.slice(0, gifLength);
+					const blob = new Blob([gifBytes], { type: 'image/gif' });
+					const url = URL.createObjectURL(blob);
+					const link = document.createElement('a');
+					link.href = url;
+					link.download = filename;
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
+					URL.revokeObjectURL(url);
+					return;
+				} catch (error) {
+					lastExportError = error;
 				}
-				controls.update();
-				renderScene();
-				captureContext.clearRect(0, 0, gifWidth, gifHeight);
-				captureContext.drawImage(canvas, 0, 0, gifWidth, gifHeight);
-				const imageData = captureContext.getImageData(0, 0, gifWidth, gifHeight);
-				indexedFrames.push(rgbaToIndexed332(imageData.data));
 			}
 
-			const estimatedBytes = Math.max(1024 * 1024, gifWidth * gifHeight * indexedFrames.length * 2);
-			const output = new Uint8Array(estimatedBytes);
-			const writer = new GifWriterCtor(output, gifWidth, gifHeight, { palette: makePalette332(), loop: 0 });
-
-			for (const frame of indexedFrames) {
-				writer.addFrame(0, 0, gifWidth, gifHeight, frame, {
-					delay: frameDelayCentiseconds,
-					disposal: 1
-				});
-			}
-
-			const gifLength = writer.end();
-			const gifBytes = output.slice(0, gifLength);
-			const blob = new Blob([gifBytes], { type: 'image/gif' });
-			const url = URL.createObjectURL(blob);
-			const link = document.createElement('a');
-			link.href = url;
-			link.download = filename;
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-			URL.revokeObjectURL(url);
+			throw lastExportError ?? new Error('Unable to export GIF at the requested settings.');
 		} finally {
 			engineConfig.autoRotate = previousAutoRotate;
 			pointContainer.rotation.z = previousContainerRotation;
