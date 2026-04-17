@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshSurfaceSampler } from 'three/examples/jsm/math/MeshSurfaceSampler.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -227,6 +228,24 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 	const objLoader = new OBJLoader();
 	const gltfLoader = new GLTFLoader();
+	const plyLoader = new PLYLoader();
+	plyLoader.setPropertyNameMapping({
+		diffuse_red: 'red',
+		diffuse_green: 'green',
+		diffuse_blue: 'blue',
+		scalar_red: 'red',
+		scalar_green: 'green',
+		scalar_blue: 'blue',
+		Red: 'red',
+		Green: 'green',
+		Blue: 'blue',
+		R: 'red',
+		G: 'green',
+		B: 'blue'
+	});
+	plyLoader.setCustomPropertyNameMapping({
+		gaussian_dc: ['f_dc_0', 'f_dc_1', 'f_dc_2']
+	});
 
 	const pointContainer = new THREE.Group();
 	scene.add(pointContainer);
@@ -510,6 +529,161 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 		if (positions.length === 0) {
 			throw new Error('The model has no valid mesh surfaces to sample.');
+		}
+
+		return toRawModel(positions, normals, colors);
+	};
+
+	const getColorDenominator = (attribute) => {
+		if (!attribute) {
+			return 1;
+		}
+
+		const source = attribute.array;
+		if (source instanceof Uint8Array || source instanceof Uint8ClampedArray) {
+			return 255;
+		}
+		if (source instanceof Uint16Array) {
+			return 65535;
+		}
+		if (source instanceof Uint32Array) {
+			return 4294967295;
+		}
+		if (source instanceof Int8Array) {
+			return 127;
+		}
+		if (source instanceof Int16Array) {
+			return 32767;
+		}
+		if (source instanceof Int32Array) {
+			return 2147483647;
+		}
+
+		if (source instanceof Float32Array || source instanceof Float64Array) {
+			const sampleSize = Math.min(source.length, 1536);
+			let maxSample = 0;
+
+			for (let i = 0; i < sampleSize; i += 1) {
+				const value = Math.abs(source[i]);
+				if (Number.isFinite(value) && value > maxSample) {
+					maxSample = value;
+				}
+			}
+
+			if (maxSample <= 1.0001) {
+				return 1;
+			}
+			if (maxSample <= 255.0001) {
+				return 255;
+			}
+			if (maxSample <= 65535.0001) {
+				return 65535;
+			}
+
+			return maxSample;
+		}
+
+		return 1;
+	};
+
+	const linearToSrgbChannel = (value) => {
+		if (value <= 0.0031308) {
+			return value * 12.92;
+		}
+
+		return 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+	};
+
+	const srgbToLinearChannel = (value) => {
+		if (value <= 0.04045) {
+			return value / 12.92;
+		}
+
+		return Math.pow((value + 0.055) / 1.055, 2.4);
+	};
+
+	const recoverCompressedPlyColor = (linearValue) => {
+		const safeLinear = THREE.MathUtils.clamp(linearValue, 0, 1);
+		const srgbValue = linearToSrgbChannel(safeLinear);
+		const expandedSrgb = THREE.MathUtils.clamp(srgbValue * 255, 0, 1);
+		return THREE.MathUtils.clamp(srgbToLinearChannel(expandedSrgb), 0, 1);
+	};
+
+	const SH_C0 = 0.28209479177387814;
+	const decodeGaussianDcColor = (value) =>
+		THREE.MathUtils.clamp(0.5 + SH_C0 * asNumber(value, 0), 0, 1);
+
+	const extractRawModelDataFromGeometry = (geometry) => {
+		if (!geometry?.attributes?.position) {
+			throw new Error('The geometry has no valid positions.');
+		}
+
+		const positions = [];
+		const normals = [];
+		const colors = [];
+		const positionAttr = geometry.getAttribute('position');
+		const normalAttr = geometry.getAttribute('normal');
+		const colorAttr = geometry.getAttribute('color');
+		const gaussianDcAttr = geometry.getAttribute('gaussian_dc');
+		const colorDenominator = getColorDenominator(colorAttr);
+		let shouldRecoverCompressedPlyColors = false;
+
+		if (colorAttr && colorDenominator === 1) {
+			const sampleCount = Math.min(colorAttr.count, 4096);
+			let maxComponent = 0;
+
+			for (let i = 0; i < sampleCount; i += 1) {
+				const r = Math.abs(colorAttr.getX(i));
+				const g = Math.abs(colorAttr.getY(i));
+				const b = Math.abs(colorAttr.getZ(i));
+				if (Number.isFinite(r) && r > maxComponent) maxComponent = r;
+				if (Number.isFinite(g) && g > maxComponent) maxComponent = g;
+				if (Number.isFinite(b) && b > maxComponent) maxComponent = b;
+			}
+
+			// Some PLY files store vertex colors as float [0..1]; PLYLoader treats them as [0..255].
+			// When that happens values collapse near black and we recover the intended range here.
+			shouldRecoverCompressedPlyColors = maxComponent > 0 && maxComponent < 0.001;
+		}
+
+		for (let i = 0; i < positionAttr.count; i += 1) {
+			const x = positionAttr.getX(i);
+			const y = positionAttr.getY(i);
+			const z = positionAttr.getZ(i);
+			positions.push(x, y, z);
+
+			if (normalAttr) {
+				normals.push(normalAttr.getX(i), normalAttr.getY(i), normalAttr.getZ(i));
+			} else {
+				tempVec3A.set(x, y, z);
+				if (tempVec3A.lengthSq() < 1e-12) {
+					tempVec3A.set(0, 0, 1);
+				} else {
+					tempVec3A.normalize();
+				}
+				normals.push(tempVec3A.x, tempVec3A.y, tempVec3A.z);
+			}
+
+			if (colorAttr) {
+				let r = THREE.MathUtils.clamp(colorAttr.getX(i) / colorDenominator, 0, 1);
+				let g = THREE.MathUtils.clamp(colorAttr.getY(i) / colorDenominator, 0, 1);
+				let b = THREE.MathUtils.clamp(colorAttr.getZ(i) / colorDenominator, 0, 1);
+
+				if (shouldRecoverCompressedPlyColors) {
+					r = recoverCompressedPlyColor(r);
+					g = recoverCompressedPlyColor(g);
+					b = recoverCompressedPlyColor(b);
+				}
+
+				colors.push(r, g, b);
+			} else if (gaussianDcAttr && gaussianDcAttr.itemSize >= 3) {
+				const r = decodeGaussianDcColor(gaussianDcAttr.getX(i));
+				const g = decodeGaussianDcColor(gaussianDcAttr.getY(i));
+				const b = decodeGaussianDcColor(gaussianDcAttr.getZ(i));
+				colors.push(r, g, b);
+			} else {
+				colors.push(1, 1, 1);
+			}
 		}
 
 		return toRawModel(positions, normals, colors);
@@ -819,12 +993,19 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			gltfLoader.parse(arrayBuffer, '', resolve, reject);
 		});
 
+	const parsePly = (arrayBuffer) => plyLoader.parse(arrayBuffer);
+
 	const loadObject3D = (object3D, loadOptions = {}) => {
 		if (!object3D) {
 			throw new Error('No valid scene found in file.');
 		}
 
 		const rawModel = extractRawModelDataFromObject(object3D);
+		return addModelFromRawModel(rawModel, loadOptions);
+	};
+
+	const loadGeometry = (geometry, loadOptions = {}) => {
+		const rawModel = extractRawModelDataFromGeometry(geometry);
 		return addModelFromRawModel(rawModel, loadOptions);
 	};
 
@@ -836,14 +1017,20 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		const lowerName = file.name.toLowerCase();
 		const isObj = lowerName.endsWith('.obj');
 		const isGlb = lowerName.endsWith('.glb');
+		const isPly = lowerName.endsWith('.ply');
 
-		if (!isObj && !isGlb) {
-			throw new Error('Unsupported file format. Use .obj or .glb');
+		if (!isObj && !isGlb && !isPly) {
+			throw new Error('Unsupported file format. Use .obj, .glb or .ply');
 		}
 
 		if (isObj) {
 			const content = await file.text();
 			return loadObject3D(objLoader.parse(content), loadOptions);
+		}
+
+		if (isPly) {
+			const geometry = parsePly(await file.arrayBuffer());
+			return loadGeometry(geometry, loadOptions);
 		}
 
 		const gltf = await parseGlb(await file.arrayBuffer());
@@ -870,7 +1057,17 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			return loadObject3D(gltf.scene || gltf.scenes?.[0], loadOptions);
 		}
 
-		throw new Error('Unsupported URL format. Use .obj, .glb or .gltf');
+		if (lowerUrl.endsWith('.ply')) {
+			const response = await fetch(url);
+			if (!response.ok) {
+				throw new Error(`Unable to load PLY: ${response.status}`);
+			}
+			const arrayBuffer = await response.arrayBuffer();
+			const geometry = parsePly(arrayBuffer);
+			return loadGeometry(geometry, loadOptions);
+		}
+
+		throw new Error('Unsupported URL format. Use .obj, .glb, .gltf or .ply');
 	};
 
 	const removeModel = (id) => {

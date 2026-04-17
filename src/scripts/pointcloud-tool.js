@@ -127,9 +127,12 @@ if (app && app.dataset.ready !== 'true') {
 		}
 
 		const lowerName = file.name.toLowerCase();
-		const supported = lowerName.endsWith('.obj') || lowerName.endsWith('.glb');
+		const supported =
+			lowerName.endsWith('.obj') ||
+			lowerName.endsWith('.glb') ||
+			lowerName.endsWith('.ply');
 		if (!supported) {
-			setPointCountText('Points: invalid file format (use .obj or .glb)');
+			setPointCountText('Points: invalid file format (use .obj, .glb or .ply)');
 			return;
 		}
 

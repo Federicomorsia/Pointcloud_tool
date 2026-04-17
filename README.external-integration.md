@@ -7,7 +7,7 @@ This document is self-contained and is meant to be shared with external projects
 The engine creates and renders one or more 3D pointcloud models in a web scene using Three.js.
 
 Core capabilities:
-- Load multiple models from local files (.obj, .glb) or URLs (.obj, .glb, .gltf)
+- Load multiple models from local files (.obj, .glb, .ply) or URLs (.obj, .glb, .gltf, .ply)
 - Convert mesh surfaces to dense pointcloud geometry
 - Place models randomly in 3D space with basic overlap avoidance
 - Orbit camera navigation and scene framing helpers
@@ -212,7 +212,7 @@ useEffect(() => {
 
 ## Supported Model Formats
 
-- Local file upload: .obj, .glb
-- URL loading: .obj, .glb, .gltf
+- Local file upload: .obj, .glb, .ply
+- URL loading: .obj, .glb, .gltf, .ply
 
-If model parsing finds no valid mesh surfaces to sample, loading fails with an explicit error.
+For .obj/.glb/.gltf the engine samples mesh surfaces; for .ply it reads geometry vertices/colors directly.

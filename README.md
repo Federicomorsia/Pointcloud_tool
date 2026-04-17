@@ -7,7 +7,7 @@ Questo progetto include:
 
 ## Funzionalita principali
 
-- Upload/drag-and-drop di file `.obj` e `.glb`
+- Upload/drag-and-drop di file `.obj`, `.glb` e `.ply`
 - Conversione mesh -> point cloud
 - Controlli in tempo reale (densita, point size, esposizione, saturazione, tinta, background)
 - Orbit controls + reset camera
@@ -103,5 +103,5 @@ engine.frameAllModels();
 
 ## Note formato modelli
 
-- Formati supportati: `.obj`, `.glb` (URL: anche `.gltf`)
-- Se un modello non contiene superfici mesh campionabili, il loader genera errore
+- Formati supportati: `.obj`, `.glb`, `.ply` (URL: anche `.gltf`)
+- Per `.obj`/`.glb`/`.gltf` il loader campiona superfici mesh; per `.ply` usa direttamente la geometria dei punti/vertici

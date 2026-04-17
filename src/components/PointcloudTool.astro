@@ -20,13 +20,13 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 		<aside class="panel">
 			<h1 class="panel-title">Pointcloud Tool</h1>
 
-			<input type="file" accept=".obj,.glb" data-file-input hidden />
+			<input type="file" accept=".obj,.glb,.ply" data-file-input hidden />
 
 			<details class="panel-group" open>
 				<summary>Import</summary>
 				<div class="panel-group-body">
 					<div class="dropzone" data-dropzone>
-						<p>Drop .obj or .glb here</p>
+						<p>Drop .obj, .glb or .ply here</p>
 						<span>or click to open file</span>
 					</div>
 
@@ -226,6 +226,7 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 			"three/examples/jsm/loaders/GLTFLoader.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/loaders/GLTFLoader.js",
 			"three/examples/jsm/math/MeshSurfaceSampler.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/math/MeshSurfaceSampler.js",
 			"three/examples/jsm/loaders/OBJLoader.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/loaders/OBJLoader.js",
+			"three/examples/jsm/loaders/PLYLoader.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/loaders/PLYLoader.js",
 			"three/examples/jsm/postprocessing/RenderPass.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/postprocessing/RenderPass.js",
 			"three/examples/jsm/postprocessing/ShaderPass.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/postprocessing/ShaderPass.js",
 			"three/examples/jsm/postprocessing/UnrealBloomPass.js": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/postprocessing/UnrealBloomPass.js"
