@@ -112,6 +112,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 	const renderer = new THREE.WebGLRenderer({
 		canvas,
 		antialias: true,
+		alpha: true,
 		powerPreference: 'high-performance'
 	});
 	renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -260,7 +261,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 	let resizeRaf = 0;
 	let animationFrameId = 0;
 	let resizeObserver = null;
-	let cachedGifWriter = null;
+	let cachedGifEncoder = null;
 	let isRunning = false;
 	let modelCounter = 0;
 	const activeAnimations = [];
@@ -1244,18 +1245,26 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		}
 	};
 
-	const getGifWriter = async () => {
-		if (cachedGifWriter) {
-			return cachedGifWriter;
+	const getGifEncoder = async () => {
+		if (cachedGifEncoder) {
+			return cachedGifEncoder;
 		}
 
-		const module = await import('https://cdn.jsdelivr.net/npm/omggif@1.0.10/+esm');
-		if (typeof module.GifWriter !== 'function') {
-			throw new Error('GifWriter export not available');
+		const module = await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/+esm');
+		if (
+			typeof module.GIFEncoder !== 'function' ||
+			typeof module.quantize !== 'function' ||
+			typeof module.applyPalette !== 'function'
+		) {
+			throw new Error('gifenc exports not available');
 		}
 
-		cachedGifWriter = module.GifWriter;
-		return cachedGifWriter;
+		cachedGifEncoder = {
+			GIFEncoder: module.GIFEncoder,
+			quantize: module.quantize,
+			applyPalette: module.applyPalette
+		};
+		return cachedGifEncoder;
 	};
 
 	const exportAsPNG = ({ filename = 'pointcloud-export.png', transparent = true } = {}) => {
@@ -1284,12 +1293,23 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		}, 'image/png');
 	};
 
-	const exportAsGIF = async ({ filename = 'pointcloud.gif', totalFrames = 600, fps = 20, maxDimension = 0 } = {}) => {
+	const exportAsGIF = async (
+		{
+			filename = 'pointcloud.gif',
+			totalFrames = 600,
+			fps = 20,
+			maxDimension = 0,
+			transparent = false,
+			paletteMode = 'global',
+			paletteSampleFrames = 12,
+			paletteMaxDimension = 180
+		} = {}
+	) => {
 		if (modelRecords.size === 0) {
 			throw new Error('Cannot export GIF: no models loaded.');
 		}
 
-		const GifWriterCtor = await getGifWriter();
+		const { GIFEncoder, quantize, applyPalette } = await getGifEncoder();
 		const sourceWidth = canvas.width;
 		const sourceHeight = canvas.height;
 		const requestedMaxDimension = asNumber(maxDimension, 0);
@@ -1297,83 +1317,26 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		const exportScale = hasDimensionLimit
 			? Math.min(1, requestedMaxDimension / Math.max(sourceWidth, sourceHeight))
 			: 1;
-		const frameDelayCentiseconds = Math.max(1, Math.round(100 / Math.max(1, fps)));
+		const frameDelayMs = Math.max(10, Math.round(1000 / Math.max(1, fps)));
 		const maxBufferBytes = 512 * 1024 * 1024;
 		const minBufferBytes = 1024 * 1024;
-
-		const makePalette216WithGrays = () => {
-			const palette = new Array(256);
-			let paletteIndex = 0;
-			for (let r = 0; r < 6; r++) {
-				for (let g = 0; g < 6; g++) {
-					for (let b = 0; b < 6; b++) {
-						const rr = Math.round((r / 5) * 255);
-						const gg = Math.round((g / 5) * 255);
-						const bb = Math.round((b / 5) * 255);
-						palette[paletteIndex] = (rr << 16) | (gg << 8) | bb;
-						paletteIndex += 1;
-					}
-				}
-			}
-
-			for (let grayStep = 0; grayStep < 40; grayStep++) {
-				const gray = Math.round((grayStep / 39) * 255);
-				palette[216 + grayStep] = (gray << 16) | (gray << 8) | gray;
-			}
-			return palette;
-		};
-
-		const clampByte = (value) => Math.min(255, Math.max(0, Math.round(value)));
-		const bayer4x4 = [
-			[0, 8, 2, 10],
-			[12, 4, 14, 6],
-			[3, 11, 1, 9],
-			[15, 7, 13, 5]
-		];
-
-		const rgbaToIndexed216WithGrays = (rgba, target, width) => {
-			for (let i = 0, p = 0; p < target.length; i += 4, p++) {
-				const x = p % width;
-				const y = Math.floor(p / width);
-				const ditherBias = (bayer4x4[y & 3][x & 3] - 7.5) * 1.5;
-				const rRaw = clampByte(rgba[i] + ditherBias);
-				const gRaw = clampByte(rgba[i + 1] + ditherBias);
-				const bRaw = clampByte(rgba[i + 2] + ditherBias);
-
-				const cubeR = Math.min(5, Math.max(0, Math.round((rRaw / 255) * 5)));
-				const cubeG = Math.min(5, Math.max(0, Math.round((gRaw / 255) * 5)));
-				const cubeB = Math.min(5, Math.max(0, Math.round((bRaw / 255) * 5)));
-				const cubeIndex = cubeR * 36 + cubeG * 6 + cubeB;
-				const cubeColorR = Math.round((cubeR / 5) * 255);
-				const cubeColorG = Math.round((cubeG / 5) * 255);
-				const cubeColorB = Math.round((cubeB / 5) * 255);
-
-				const luma = Math.round(0.299 * rRaw + 0.587 * gRaw + 0.114 * bRaw);
-				const grayLevel = Math.min(39, Math.max(0, Math.round((luma / 255) * 39)));
-				const grayValue = Math.round((grayLevel / 39) * 255);
-
-				const cubeDistance =
-					(rRaw - cubeColorR) * (rRaw - cubeColorR) +
-					(gRaw - cubeColorG) * (gRaw - cubeColorG) +
-					(bRaw - cubeColorB) * (bRaw - cubeColorB);
-				const grayDistance =
-					(rRaw - grayValue) * (rRaw - grayValue) +
-					(gRaw - grayValue) * (gRaw - grayValue) +
-					(bRaw - grayValue) * (bRaw - grayValue);
-
-				target[p] = grayDistance < cubeDistance ? 216 + grayLevel : cubeIndex;
-			}
-		};
+		const normalizedPaletteMode = paletteMode === 'per-frame' ? 'per-frame' : 'global';
+		const paletteFormat = transparent ? 'rgba4444' : 'rgb565';
+		const quantizeOptions = transparent
+			? { format: paletteFormat, oneBitAlpha: true }
+			: { format: paletteFormat };
 
 		const previousAutoRotate = engineConfig.autoRotate;
+		const previousBloomEnabled = engineConfig.bloomEnabled;
 		const previousClearColor = new THREE.Color();
 		renderer.getClearColor(previousClearColor);
 		const previousClearAlpha = renderer.getClearAlpha();
 		const previousContainerRotation = pointContainer.rotation.z;
 
 		engineConfig.autoRotate = false;
+		engineConfig.bloomEnabled = transparent ? false : previousBloomEnabled;
 		pointContainer.rotation.z = previousContainerRotation;
-		renderer.setClearColor(engineConfig.background, 1);
+		renderer.setClearColor(transparent ? 0x000000 : engineConfig.background, transparent ? 0 : 1);
 
 		const stepRotation = (Math.PI * 2) / Math.max(1, totalFrames);
 		const scaleCandidates = [
@@ -1389,6 +1352,19 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		]
 			.map((scale) => Math.min(1, Math.max(0.2, scale)))
 			.filter((scale, index, values) => values.indexOf(scale) === index);
+
+		const normalizeTransparentPalette = (palette) => {
+			if (!transparent) {
+				return { palette, transparentIndex: null };
+			}
+			let transparentIndex = palette.findIndex((color) => color.length > 3 && color[3] === 0);
+			if (transparentIndex === -1) {
+				const nextPalette = [[0, 0, 0, 0], ...palette];
+				const trimmed = nextPalette.length > 256 ? nextPalette.slice(0, 256) : nextPalette;
+				return { palette: trimmed, transparentIndex: 0 };
+			}
+			return { palette, transparentIndex };
+		};
 
 		let lastExportError = null;
 
@@ -1413,13 +1389,92 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 					captureContext.imageSmoothingEnabled = true;
 					captureContext.imageSmoothingQuality = 'high';
 
-					const output = new Uint8Array(bufferBytes);
-					const writer = new GifWriterCtor(output, gifWidth, gifHeight, {
-						palette: makePalette216WithGrays(),
-						loop: 0
-					});
-					const indexedFrameBuffer = new Uint8Array(gifWidth * gifHeight);
+					let globalPalette = null;
+					let globalTransparentIndex = null;
+
+					if (normalizedPaletteMode === 'global') {
+						const sampleFrameCount = Math.max(
+							1,
+							Math.min(totalFrames, Math.round(asNumber(paletteSampleFrames, 12)))
+						);
+						const paletteMaxDim = Math.max(48, Math.round(asNumber(paletteMaxDimension, 180)));
+						const paletteScale = Math.min(1, paletteMaxDim / Math.max(gifWidth, gifHeight));
+						const paletteWidth = Math.max(1, Math.round(gifWidth * paletteScale));
+						const paletteHeight = Math.max(1, Math.round(gifHeight * paletteScale));
+						const paletteStride = Math.max(1, Math.floor(Math.max(paletteWidth, paletteHeight) / 90));
+						const palettePixelsPerFrame =
+							Math.ceil(paletteWidth / paletteStride) * Math.ceil(paletteHeight / paletteStride);
+						const paletteBuffer = new Uint8Array(palettePixelsPerFrame * sampleFrameCount * 4);
+						let paletteOffset = 0;
+						const paletteCanvas = document.createElement('canvas');
+						paletteCanvas.width = paletteWidth;
+						paletteCanvas.height = paletteHeight;
+						const paletteContext = paletteCanvas.getContext('2d', { willReadFrequently: true });
+						if (!paletteContext) {
+							throw new Error('2D palette context unavailable.');
+						}
+						paletteContext.imageSmoothingEnabled = true;
+						paletteContext.imageSmoothingQuality = 'high';
+						const paletteStep = Math.max(1, Math.floor(totalFrames / sampleFrameCount));
+
+						for (let sampleIndex = 0; sampleIndex < sampleFrameCount; sampleIndex += 1) {
+							const frameIndex = Math.min(totalFrames - 1, sampleIndex * paletteStep);
+							pointContainer.rotation.z = previousContainerRotation + stepRotation * frameIndex;
+							controls.update();
+							renderScene();
+							paletteContext.clearRect(0, 0, paletteWidth, paletteHeight);
+							paletteContext.drawImage(canvas, 0, 0, paletteWidth, paletteHeight);
+							const imageData = paletteContext.getImageData(0, 0, paletteWidth, paletteHeight);
+							const data = imageData.data;
+							for (let y = 0; y < paletteHeight; y += paletteStride) {
+								const row = y * paletteWidth * 4;
+								for (let x = 0; x < paletteWidth; x += paletteStride) {
+									const i = row + x * 4;
+									paletteBuffer[paletteOffset] = data[i];
+									paletteBuffer[paletteOffset + 1] = data[i + 1];
+									paletteBuffer[paletteOffset + 2] = data[i + 2];
+									paletteBuffer[paletteOffset + 3] = data[i + 3];
+									paletteOffset += 4;
+									if (paletteOffset >= paletteBuffer.length) {
+										break;
+									}
+								}
+								if (paletteOffset >= paletteBuffer.length) {
+									break;
+								}
+							}
+							if (paletteOffset >= paletteBuffer.length) {
+								break;
+							}
+						}
+
+						pointContainer.rotation.z = previousContainerRotation;
+						const quantizedPalette = quantize(
+							paletteBuffer.subarray(0, paletteOffset),
+							256,
+							quantizeOptions
+						);
+						const normalizedPalette = normalizeTransparentPalette(quantizedPalette);
+						globalPalette = normalizedPalette.palette;
+						globalTransparentIndex = normalizedPalette.transparentIndex;
+					}
+
+					const initialCapacity = Math.min(bufferBytes, 64 * 1024 * 1024);
+					const gif = GIFEncoder({ initialCapacity });
 					pointContainer.rotation.z = previousContainerRotation;
+
+					const baseFrameOptions = {
+						delay: frameDelayMs,
+						dispose: transparent ? 2 : 1
+					};
+					if (transparent && normalizedPaletteMode === 'global') {
+						baseFrameOptions.transparent = true;
+						baseFrameOptions.transparentIndex = globalTransparentIndex;
+					}
+					const firstFrameOptions =
+						normalizedPaletteMode === 'global'
+							? { ...baseFrameOptions, palette: globalPalette, repeat: 0 }
+							: { ...baseFrameOptions, repeat: 0 };
 
 					for (let frame = 0; frame < totalFrames; frame += 1) {
 						if (frame > 0) {
@@ -1430,15 +1485,33 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 						captureContext.clearRect(0, 0, gifWidth, gifHeight);
 						captureContext.drawImage(canvas, 0, 0, gifWidth, gifHeight);
 						const imageData = captureContext.getImageData(0, 0, gifWidth, gifHeight);
-						rgbaToIndexed216WithGrays(imageData.data, indexedFrameBuffer, gifWidth);
-						writer.addFrame(0, 0, gifWidth, gifHeight, indexedFrameBuffer, {
-							delay: frameDelayCentiseconds,
-							disposal: 1
-						});
+
+						if (normalizedPaletteMode === 'per-frame') {
+							const quantizedPalette = quantize(imageData.data, 256, quantizeOptions);
+							const normalizedPalette = normalizeTransparentPalette(quantizedPalette);
+							const indexed = applyPalette(imageData.data, normalizedPalette.palette, paletteFormat);
+							const frameOptions = {
+								...baseFrameOptions,
+								palette: normalizedPalette.palette
+							};
+							if (transparent) {
+								frameOptions.transparent = true;
+								frameOptions.transparentIndex = normalizedPalette.transparentIndex;
+							}
+							if (frame === 0) {
+								frameOptions.repeat = 0;
+							}
+							gif.writeFrame(indexed, gifWidth, gifHeight, frameOptions);
+							continue;
+						}
+
+						const indexed = applyPalette(imageData.data, globalPalette, paletteFormat);
+						const frameOptions = frame === 0 ? firstFrameOptions : baseFrameOptions;
+						gif.writeFrame(indexed, gifWidth, gifHeight, frameOptions);
 					}
 
-					const gifLength = writer.end();
-					const gifBytes = output.slice(0, gifLength);
+					gif.finish();
+					const gifBytes = gif.bytesView();
 					const blob = new Blob([gifBytes], { type: 'image/gif' });
 					const url = URL.createObjectURL(blob);
 					const link = document.createElement('a');
@@ -1457,6 +1530,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			throw lastExportError ?? new Error('Unable to export GIF at the requested settings.');
 		} finally {
 			engineConfig.autoRotate = previousAutoRotate;
+			engineConfig.bloomEnabled = previousBloomEnabled;
 			pointContainer.rotation.z = previousContainerRotation;
 			renderer.setClearColor(previousClearColor, previousClearAlpha);
 			renderScene();

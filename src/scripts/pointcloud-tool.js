@@ -279,7 +279,16 @@ if (app && app.dataset.ready !== 'true') {
 		exportGifButton.textContent = 'Exporting...';
 
 		try {
-			await engine.exportAsGIF({ filename: 'pointcloud.gif', totalFrames: 600, fps: 20 });
+			await engine.exportAsGIF({
+				filename: 'pointcloud.gif',
+				totalFrames: 450,
+				fps: 30,
+				maxDimension: 1800,
+				transparent: true,
+				paletteMode: 'global',
+				paletteSampleFrames: 24,
+				paletteMaxDimension: 240
+			});
 		} catch {
 			setPointCountText('Points: unable to export GIF');
 		} finally {
