@@ -1156,7 +1156,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		if (engineConfig.bloomEnabled) {
 			const previousClearAlpha = renderer.getClearAlpha();
 			renderer.getClearColor(tempClearColor);
-			renderer.setClearColor(0x000000, 1);
+			renderer.setClearColor(0x000000, previousClearAlpha);
 
 			scene.traverse(darkenNonBloomed);
 			bloomComposer.render();
