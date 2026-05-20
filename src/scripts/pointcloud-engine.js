@@ -15,7 +15,7 @@ const DEFAULT_OPTIONS = Object.freeze({
 	exposure: 1,
 	saturation: 1,
 	tint: '#ffffff',
-	background: '#000000',
+	background: '#201203',
 	autoRotate: true,
 	rotationSpeed: 0.6,
 	forceZUpOrientation: true,

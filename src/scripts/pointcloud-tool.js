@@ -69,7 +69,7 @@ if (app && app.dataset.ready !== 'true') {
 		exposure: Number(brightnessInput?.value ?? 1),
 		saturation: Number(saturationInput?.value ?? 1),
 		tint: tintInput?.value ?? '#ffffff',
-		background: backgroundInput?.value ?? '#000000',
+		background: backgroundInput?.value ?? '#201203',
 		autoRotate: animationToggle ? animationToggle.checked : true,
 		rotationSpeed: Number(rotationSpeedInput?.value ?? 0.6),
 		bloomEnabled: bloomToggle ? bloomToggle.checked : false,
