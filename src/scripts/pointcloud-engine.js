@@ -17,6 +17,9 @@ const DEFAULT_OPTIONS = Object.freeze({
 	tint: '#ffffff',
 	background: '#201203',
 	autoRotate: true,
+	autoRotateX: false,
+	autoRotateY: false,
+	autoRotateZ: true,
 	rotationSpeed: 0.6,
 	forceZUpOrientation: true,
 	bloomEnabled: false,
@@ -268,7 +271,11 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 	const engineConfig = {
 		pointDensity: Math.round(asNumber(options.pointDensity, DEFAULT_OPTIONS.pointDensity)),
-		autoRotate: Boolean(options.autoRotate),
+		autoRotateX: Boolean(options.autoRotateX ?? DEFAULT_OPTIONS.autoRotateX),
+		autoRotateY: Boolean(options.autoRotateY ?? DEFAULT_OPTIONS.autoRotateY),
+		autoRotateZ: options.autoRotateZ != null
+			? Boolean(options.autoRotateZ)
+			: Boolean(options.autoRotate ?? DEFAULT_OPTIONS.autoRotate),
 		rotationSpeed: asNumber(options.rotationSpeed, DEFAULT_OPTIONS.rotationSpeed),
 		forceZUpOrientation: Boolean(options.forceZUpOrientation),
 		bloomEnabled: Boolean(options.bloomEnabled),
@@ -1174,7 +1181,13 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 	const renderLoop = () => {
 		const delta = clock.getDelta();
-		if (engineConfig.autoRotate) {
+		if (engineConfig.autoRotateX) {
+			pointContainer.rotation.x += delta * engineConfig.rotationSpeed;
+		}
+		if (engineConfig.autoRotateY) {
+			pointContainer.rotation.y += delta * engineConfig.rotationSpeed;
+		}
+		if (engineConfig.autoRotateZ) {
 			pointContainer.rotation.z += delta * engineConfig.rotationSpeed;
 		}
 		controls.update();
@@ -1326,14 +1339,18 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			? { format: paletteFormat, oneBitAlpha: true }
 			: { format: paletteFormat };
 
-		const previousAutoRotate = engineConfig.autoRotate;
+		const previousAutoRotateX = engineConfig.autoRotateX;
+		const previousAutoRotateY = engineConfig.autoRotateY;
+		const previousAutoRotateZ = engineConfig.autoRotateZ;
 		const previousBloomEnabled = engineConfig.bloomEnabled;
 		const previousClearColor = new THREE.Color();
 		renderer.getClearColor(previousClearColor);
 		const previousClearAlpha = renderer.getClearAlpha();
 		const previousContainerRotation = pointContainer.rotation.z;
 
-		engineConfig.autoRotate = false;
+		engineConfig.autoRotateX = false;
+		engineConfig.autoRotateY = false;
+		engineConfig.autoRotateZ = false;
 		engineConfig.bloomEnabled = transparent ? false : previousBloomEnabled;
 		pointContainer.rotation.z = previousContainerRotation;
 		renderer.setClearColor(transparent ? 0x000000 : engineConfig.background, transparent ? 0 : 1);
@@ -1529,7 +1546,9 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 
 			throw lastExportError ?? new Error('Unable to export GIF at the requested settings.');
 		} finally {
-			engineConfig.autoRotate = previousAutoRotate;
+			engineConfig.autoRotateX = previousAutoRotateX;
+			engineConfig.autoRotateY = previousAutoRotateY;
+			engineConfig.autoRotateZ = previousAutoRotateZ;
 			engineConfig.bloomEnabled = previousBloomEnabled;
 			pointContainer.rotation.z = previousContainerRotation;
 			renderer.setClearColor(previousClearColor, previousClearAlpha);
@@ -1564,8 +1583,20 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			applyRendererBackground();
 		}
 
-		if (nextOptions.autoRotate != null) {
-			engineConfig.autoRotate = Boolean(nextOptions.autoRotate);
+		if (nextOptions.autoRotateX != null) {
+			engineConfig.autoRotateX = Boolean(nextOptions.autoRotateX);
+		}
+
+		if (nextOptions.autoRotateY != null) {
+			engineConfig.autoRotateY = Boolean(nextOptions.autoRotateY);
+		}
+
+		if (nextOptions.autoRotateZ != null) {
+			engineConfig.autoRotateZ = Boolean(nextOptions.autoRotateZ);
+		}
+
+		if (nextOptions.autoRotate != null && nextOptions.autoRotateZ == null) {
+			engineConfig.autoRotateZ = Boolean(nextOptions.autoRotate);
 		}
 
 		if (nextOptions.rotationSpeed != null) {

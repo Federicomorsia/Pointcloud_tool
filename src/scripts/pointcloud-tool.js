@@ -16,6 +16,8 @@ if (app && app.dataset.ready !== 'true') {
 	const brightnessInput = app.querySelector('[data-brightness]');
 	const saturationInput = app.querySelector('[data-saturation]');
 	const tintInput = app.querySelector('[data-tint]');
+	const animationXToggle = app.querySelector('[data-animate-x-toggle]');
+	const animationYToggle = app.querySelector('[data-animate-y-toggle]');
 	const animationToggle = app.querySelector('[data-animate-toggle]');
 	const rotationSpeedInput = app.querySelector('[data-rotation-speed]');
 	const bloomToggle = app.querySelector('[data-bloom-toggle]');
@@ -70,6 +72,8 @@ if (app && app.dataset.ready !== 'true') {
 		saturation: Number(saturationInput?.value ?? 1),
 		tint: tintInput?.value ?? '#ffffff',
 		background: backgroundInput?.value ?? '#201203',
+		autoRotateX: animationXToggle ? animationXToggle.checked : false,
+		autoRotateY: animationYToggle ? animationYToggle.checked : false,
 		autoRotate: animationToggle ? animationToggle.checked : true,
 		rotationSpeed: Number(rotationSpeedInput?.value ?? 0.6),
 		bloomEnabled: bloomToggle ? bloomToggle.checked : false,
@@ -214,6 +218,14 @@ if (app && app.dataset.ready !== 'true') {
 	sizeInput?.addEventListener('input', () => {
 		syncControlValues();
 		engine.setOptions({ pointSize: Number(sizeInput.value) });
+	});
+
+	animationXToggle?.addEventListener('change', () => {
+		engine.setOptions({ autoRotateX: animationXToggle.checked });
+	});
+
+	animationYToggle?.addEventListener('change', () => {
+		engine.setOptions({ autoRotateY: animationYToggle.checked });
 	});
 
 	animationToggle?.addEventListener('change', () => {
