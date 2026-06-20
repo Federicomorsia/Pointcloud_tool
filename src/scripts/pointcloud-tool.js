@@ -10,6 +10,7 @@ if (app && app.dataset.ready !== 'true') {
 	const canvas = app.querySelector('[data-pointcloud-canvas]');
 	const uploadButton = app.querySelector('[data-action-upload]');
 	const fileInput = app.querySelector('[data-file-input]');
+	const modelSelect = app.querySelector('[data-model-select]');
 	const dropzone = app.querySelector('[data-dropzone]');
 	const densityInput = app.querySelector('[data-density]');
 	const sizeInput = app.querySelector('[data-size]');
@@ -144,6 +145,15 @@ if (app && app.dataset.ready !== 'true') {
 		await engine.addModelFromFile(file, { frame: true });
 	};
 
+	const loadBundledModel = async (url) => {
+		if (!url) {
+			return;
+		}
+
+		setPointCountText('Points: loading model…');
+		await engine.addModelFromUrl(url, { replace: true, frame: true });
+	};
+
 	const initializeModel = async () => {
 		let loadedDefault = false;
 
@@ -171,6 +181,21 @@ if (app && app.dataset.ready !== 'true') {
 	uploadButton?.addEventListener('click', () => fileInput?.click());
 	dropzone?.addEventListener('click', () => fileInput?.click());
 
+	modelSelect?.addEventListener('change', async () => {
+		if (!modelSelect.value) {
+			return;
+		}
+
+		modelSelect.disabled = true;
+		try {
+			await loadBundledModel(modelSelect.value);
+		} catch {
+			setPointCountText('Points: unable to load selected model');
+		} finally {
+			modelSelect.disabled = false;
+		}
+	});
+
 	fileInput?.addEventListener('change', async (event) => {
 		const target = event.target;
 		const file = target.files?.[0];
@@ -180,6 +205,7 @@ if (app && app.dataset.ready !== 'true') {
 
 		try {
 			await loadSingleModelFromFile(file);
+			if (modelSelect) modelSelect.value = '';
 		} catch {
 			setPointCountText('Points: unable to parse model');
 		}
@@ -205,6 +231,7 @@ if (app && app.dataset.ready !== 'true') {
 
 		try {
 			await loadSingleModelFromFile(file);
+			if (modelSelect) modelSelect.value = '';
 		} catch {
 			setPointCountText('Points: unable to parse model');
 		}

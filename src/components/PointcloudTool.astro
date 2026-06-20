@@ -9,6 +9,22 @@ const bundledGlbAssets = Object.values(
 	}),
 );
 const defaultModelUrl = bundledGlbAssets[0] ?? "";
+
+const bundledPlantModels = Object.entries(
+	import.meta.glob("../../models/*.{glb,ply}", {
+		eager: true,
+		query: "?url",
+		import: "default",
+	}),
+)
+	.map(([path, url]) => {
+		const filename = path.split("/").pop() ?? path;
+		return {
+			label: filename.replace(/-\d+\.(glb|ply)$/i, ""),
+			url,
+		};
+	})
+	.sort((a, b) => a.label.localeCompare(b.label, "it"));
 ---
 
 <section
@@ -25,6 +41,18 @@ const defaultModelUrl = bundledGlbAssets[0] ?? "";
 			<details class="panel-group" open>
 				<summary>Import</summary>
 				<div class="panel-group-body">
+					<label>
+						<div class="control-head">
+							<span>Modello 3D</span>
+						</div>
+						<select data-model-select>
+							<option value="">Scegli una pianta…</option>
+							{bundledPlantModels.map((model) => (
+								<option value={model.url}>{model.label}</option>
+							))}
+						</select>
+					</label>
+
 					<div class="dropzone" data-dropzone>
 						<p>Drop .obj, .glb or .ply here</p>
 						<span>or click to open file</span>

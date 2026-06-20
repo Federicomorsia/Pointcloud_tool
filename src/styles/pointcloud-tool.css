@@ -213,6 +213,28 @@ input[type="color"] {
 	-webkit-appearance: none;
 }
 
+select {
+	width: 100%;
+	min-height: 2.35rem;
+	padding: 0.5rem 2rem 0.5rem 0.65rem;
+	font: inherit;
+	color: var(--text);
+	background: #1a1a1a;
+	border: 1px solid #555;
+	border-radius: 0;
+	cursor: pointer;
+}
+
+select:focus {
+	outline: 1px solid #888;
+	outline-offset: 1px;
+}
+
+select:disabled {
+	cursor: wait;
+	opacity: 0.65;
+}
+
 input[type="color"]::-webkit-color-swatch-wrapper {
 	padding: 0;
 }

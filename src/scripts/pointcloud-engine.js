@@ -341,6 +341,8 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		const positions = rawModel.positions;
 		const normals = rawModel.normals;
 		const colors = rawModel.colors;
+		const forceZUpOrientation = rawModel.forceZUpOrientation
+			?? engineConfig.forceZUpOrientation;
 
 		let minX = Infinity;
 		let minY = Infinity;
@@ -376,7 +378,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			positions[i + 1] = (positions[i + 1] - centerY) * scale;
 			positions[i + 2] = (positions[i + 2] - centerZ) * scale;
 
-			if (engineConfig.forceZUpOrientation) {
+			if (forceZUpOrientation) {
 				const y = positions[i + 1];
 				const z = positions[i + 2];
 				positions[i + 1] = -z;
@@ -385,7 +387,7 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		}
 
 		for (let i = 0; i < positions.length; i += 3) {
-			if (engineConfig.forceZUpOrientation) {
+			if (forceZUpOrientation) {
 				const normalY = normals[i + 1];
 				const normalZ = normals[i + 2];
 				normals[i + 1] = -normalZ;
@@ -426,11 +428,12 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 		};
 	};
 
-	const toRawModel = (positionsArray, normalsArray, colorsArray) =>
+	const toRawModel = (positionsArray, normalsArray, colorsArray, normalizationOptions = {}) =>
 		normalizeModel({
 			positions: toFloat32(positionsArray),
 			normals: toFloat32(normalsArray),
-			colors: toFloat32(colorsArray)
+			colors: toFloat32(colorsArray),
+			...normalizationOptions
 		});
 
 	const createTextureSampler = (texture) => {
@@ -694,7 +697,8 @@ export const createPointcloudEngine = (inputOptions = {}) => {
 			}
 		}
 
-		return toRawModel(positions, normals, colors);
+		// PLY scans in this project are already Z-up, so preserve their native axes.
+		return toRawModel(positions, normals, colors, { forceZUpOrientation: false });
 	};
 
 	const createGeometryFromRaw = (rawModel, step) => {
