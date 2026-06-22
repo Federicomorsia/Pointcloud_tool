@@ -19,8 +19,9 @@ const bundledPlantModels = Object.entries(
 )
 	.map(([path, url]) => {
 		const filename = path.split("/").pop() ?? path;
+		const svModel = /\ssv-\d+\.(glb|ply)$/i.test(filename);
 		return {
-			label: filename.replace(/-\d+\.(glb|ply)$/i, ""),
+			label: `${filename.replace(/(?:\ssv)?-\d+\.(glb|ply)$/i, "")}${svModel ? " (SV)" : ""}`,
 			url,
 		};
 	})
